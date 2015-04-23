@@ -54,13 +54,17 @@ local NULL_STRING = string.char(255)
 
 local function send_request(client, operation, fmt, ...)
   fmt = fmt or ''
-  assert(#fmt == #arg,
-         'format string length ('..#fmt..') not equal to number of arguments ('..#arg..')')
+  local arg = {...}
+  local argc = select('#', ...)
+  
+  assert(#fmt == argc,
+         ' format string ('..fmt..') length not equal to number of arguments ('..argc..')')
   local pack_args = {operation, client.session}
   for i = 1, #fmt do
     local v = arg[i]
     local f = fmt:sub(i, i)
     if f == 's' then
+      if type(v) ~= 'string' then error('expected a string value, got '..type(v)) end
       table.insert(pack_args, #v)
     end
     table.insert(pack_args, v)
@@ -114,6 +118,18 @@ function _M.db_open(client, db_name, db_type, user, password)
                       user,
                       password
   )
+end
+
+function _M.db_create(client, db_name, db_type, storage_type)
+  return send_request(client, _M.DB_CREATE, 'sss', db_name, db_type, storage_type)
+end
+
+function _M.db_drop(client, db_name, storage_type)
+  return send_request(client, _M.DB_DROP, 'ss', db_name, storage_type)
+end
+
+function _M.db_exist(client, db_name, storage_type)
+  return send_request(client, _M.DB_EXIST, 'ss', db_name, storage_type)
 end
 
 function _M.db_list(client)
