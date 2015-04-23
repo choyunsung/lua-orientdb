@@ -1,7 +1,10 @@
 odb = require 'orientdb'
 
+local USER = 'root'
+local PASSWORD = 'root'
+
 for _, socket_lib in pairs({'socket'}) do
-  describe('connect over #'..socket_lib, function()
+  describe('#connect over #'..socket_lib, function()
            
     it('check client parameters', function()
       assert.has.errors(function() odb.new('localhost', 2424, 'not_a_lib') end)
@@ -13,18 +16,28 @@ for _, socket_lib in pairs({'socket'}) do
       assert.has_no.errors(function() odb.new('localhost', 2424, socket_lib) end)
     end)
     
+    it('check credentials', function()
+      local client = odb.new('localhost', 2424, socket_lib)
+      assert.has.errors(function()
+        return client:connect('no_pass')
+      end)
+      assert.has.errors(function()
+        return client:connect('bad', 'creds')
+      end)
+    end)
+    
     it('connect', function()
-      assert.truthy(function()
-        local client = odb.new('localhost', 2424, socket_lib)
-        return client:connect('root', 'root')
+      local client = odb.new('localhost', 2424, socket_lib)
+      assert.has_no.errors(function()
+        client:connect(USER, PASSWORD)
       end)
     end)    
   end)
   
-  describe('graph over #'..socket_lib, function()
+  describe('#operations on #'..socket_lib, function()
     local client = odb.new('localhost', 2424, socket_lib)
     local db = nil
-    client:connect('root', 'root')
+    client:connect(USER, PASSWORD)
     
     it('list databases', function()
       local dbs = assert.has_no.errors(function() return client:db_list() end)
@@ -33,14 +46,14 @@ for _, socket_lib in pairs({'socket'}) do
     
     it('open graph database', function()
       db = assert.has_no.errors(function()
-        return client:db_open('animals', 'graph', 'root', 'root')
+        return client:db_open('animals', 'graph', USER, PASSWORD)
       end)
       assert.truthy(db)
     end)
     
     pending('open document database')
     
-    it('database info', function()
+    it('database #info', function()
       assert.truthy(function() return db:size() end)
       assert.truthy(function() return db:count_records() end)
     end)
@@ -50,22 +63,22 @@ for _, socket_lib in pairs({'socket'}) do
     end)
     
     it('create document database in memory', function()
-      assert.has_no.errors(function() client:db_create('doc_db_mem', odb.DOCUMENT, odb.MEMORY) end)
+      assert.has_no.errors(function() client:db_create('doc_db_mem', odb.DB.DOCUMENT, odb.STORAGE.MEMORY) end)
       assert.truthy(client:db_exists('doc_db_mem'))
     end)
     
     it('create document database on disk', function()
-      assert.has_no.errors(function() client:db_create('doc_db_phys', odb.DOCUMENT, odb.PHYSICAL) end)
+      assert.has_no.errors(function() client:db_create('doc_db_phys', odb.DB.DOCUMENT, odb.STORAGE.PHYSICAL) end)
       assert.truthy(client:db_exists('doc_db_phys'))
     end)
       
     it('create graph database in memory', function()
-      assert.has_no.errors(function() client:db_create('graph_db_mem', odb.GRAPH, odb.MEMORY) end)
+      assert.has_no.errors(function() client:db_create('graph_db_mem', odb.DB.GRAPH, odb.STORAGE.MEMORY) end)
       assert.truthy(client:db_exists('graph_db_mem'))
     end)
       
     it('create graph database on disk', function()
-      assert.has_no.errors(function() client:db_create('graph_db_phys', odb.GRAPH, odb.PHYSICAL) end)
+      assert.has_no.errors(function() client:db_create('graph_db_phys', odb.DB.GRAPH, odb.STORAGE.PHYSICAL) end)
       assert.truthy(client:db_exists('graph_db_phys'))
     end)
     
