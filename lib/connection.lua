@@ -2,7 +2,7 @@ local _M = {}
 
 local function find_socket_library(sockets_lib)
   if sockets_lib then return require(sockets_lib) end
-  ok, lib = pcall(require, 'ngx.socket')
+  local ok, lib = pcall(require, 'ngx.socket')
   if ok then return lib end
   ok, lib = pcall(require, 'socket')
   if ok then return lib end
@@ -14,18 +14,23 @@ function _M.connect(host, port, sockets_lib)
   local lib = find_socket_library(sockets_lib)
   
   connection.tcp = assert(lib.tcp())
-  connection.tcp:connect(host, port)
+  local ok, err_msg = connection.tcp:connect(host, port)
+  if not ok then error('establishing connection '..err_msg) end
   
   function connection:close()
     self.tcp:close()
   end
   
   function connection:send(request)
-    self.tcp:send(request)
+    local line, err = self.tcp:send(request)
+    if not line then error('on send connection '..err) end
+    return line
   end
   
   function connection:receive(bytes)
-    return self.tcp:receive(bytes)
+    local line, err = self.tcp:receive(bytes)
+    if not line then error('on receive connection '..err) end
+    return line
   end
   
   local pn = assert(connection.tcp:receive(2))
