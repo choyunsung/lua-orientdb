@@ -1,4 +1,7 @@
 local _M = {}
+
+local debug = require 'lib.util'.debug
+
 local OP = {
   -- server operations
   SHUTDOWN = 1,
@@ -58,6 +61,8 @@ local function send_request(client, operation, fmt, ...)
   local arg = {...}
   local argc = select('#', ...)
   
+  local struct = require 'struct'
+  
   assert(#fmt == argc,
          ' format string ('..fmt..') length not equal to number of arguments ('..argc..')')
   local pack_args = {operation, client.session}
@@ -95,11 +100,11 @@ local function send_request(client, operation, fmt, ...)
   local response = nil
   if client.session == -1 then
     client.session = struct.unpack('>i4', client.connection:receive(4))
-  elseif ok then
-    local n_response = struct.unpack('>i4', client.connection:receive(4))
-    if n_response > 0 then
-      response = struct.unpack('>i4', client.connection:receive(n_response))
-    end
+  end
+  local n_response = struct.unpack('>i4', client.connection:receive(4))
+
+  if n_response > 0 then
+    response = struct.unpack('>i4', client.connection:receive(n_response))
   end
   return ok, response
 end
