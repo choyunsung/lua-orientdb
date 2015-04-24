@@ -56,7 +56,7 @@ local OP = {
 local TRUE, FALSE = 1, 0
 local NULL_STRING = string.char(255)
 
-function create_request(client, operation)
+local function create_request(client, operation)
   local struct = require 'struct'
   
   local req = {
@@ -91,18 +91,16 @@ function create_request(client, operation)
     if not self.contents then self:write() end
     self.CLIENT.connection:send(self.contents)
 
-    local ok = struct.unpack('>b', self:_recv(1)) == 0
-    local session = struct.unpack('>i4', self:_recv(4))
+    local ok = self:read_byte() == 0
+    local session = self:read_int()
     
     debug('sent. ok=', tostring(ok), ', session=', session)
     
     if not ok then
       local error_msg = 'Request error. '
-      while struct.unpack('>b', self:_recv(1)) == 1 do
-        local n = struct.unpack('>i4', self:_recv(4))
-        error_msg = error_msg..struct.unpack('>c'..n, self:_recv(n))..'. '
-        n = struct.unpack('>i4', self:_recv(4))
-        error_msg = error_msg..struct.unpack('>c'..n, self:_recv(n))..'.\n'
+      while self:read_byte() == 1 do  
+        error_msg = error_msg..self:read_string()..'. '
+        error_msg = error_msg..self:read_string()..'.\n'
       end
       debug(error_msg)
       error(error_msg)
@@ -112,15 +110,51 @@ function create_request(client, operation)
            'sessions do not match, got '..session..', expected '..self.CLIENT.session)
   end
   
-  function req:parse_response()
-    local response = nil
-    local n_response = struct.unpack('>i4', self:_recv(4))
+  function req:read_string()
+    return self:read_bytes() or ''
+  end
   
-    if n_response > 0 then
-      response = struct.unpack('>i4', self:_recv(n_response))
+  function req:read_strings()
+    local n = req:read_int()
+    local ret = {}
+    for i = 1, n do
+      ret.insert(req:read_string())
     end
-    debug('response n=', n_response, ': ', tostring(response))
-    return response
+    return ret
+  end
+  
+  function req:read_int(bytes)
+    bytes = bytes or 4
+    return struct.unpack('>i'..bytes, self:_recv(bytes))
+  end
+  
+  function req:read_byte()
+    return self:read_int(1)
+  end
+  
+  function req:read_bool()
+    return self:read_byte() == TRUE
+  end
+  
+  function req:read_bytes()
+    local n = self:read_int()
+    if n == 0 then return nil end
+    return struct.unpack('>c'..n, self:_recv(n))
+  end
+  
+  function req:read_record()
+    local header = req:read_int(2)
+    assert(header == 0 or header == -2 or header == -3, 'bad record header '..header)
+    debug('record header '..header)
+    if header == -2 then return nil end
+    if header == -3 then return req:read_int(2), req:read_int(8) end
+    
+    local record_type = req:read_int(1)
+    local cluster_id = req:read_int(2)
+    local cluster_pos = req:read_int(8)
+    local record_version = req:read_int()
+    local contents = req:read_bytes()
+    return cluster_id, cluster_pos, record_type, contents, record_version
   end
   
   function req:_recv(bytes)
@@ -143,9 +177,9 @@ function _M.connect(client, user, password)
             password
             )
   req:send()
-  client.session = struct.unpack('>i4', client.connection:receive(4))
+  client.session = req:read_int()
   debug('session set to ', client.session)
-  return req:parse_response()
+  assert(req:read_bytes() == nil) --token, should be empty
 end
 
 function _M.db_open(client, db_name, db_type, user, password)
@@ -163,9 +197,9 @@ function _M.db_open(client, db_name, db_type, user, password)
             password
             )
   req:send()
-  client.session = struct.unpack('>i4', client.connection:receive(4))
+  client.session = req:read_int()
   debug('session set to ', client.session)
-  return req:parse_response()
+  assert(req:read_bytes() == nil) --token, should be empty
 end
 
 function _M.db_create(client, db_name, db_type, storage_type)
@@ -184,13 +218,13 @@ function _M.db_exist(client, db_name, storage_type)
   local req = create_request(client, OP.DB_EXIST)
   req:write('ss', db_name, storage_type)
   req:send()
-  return struct.unpack('>b', client.connection:receive(1)) == TRUE
+  return req:read_bool()
 end
 
 function _M.db_list(client)
   local req = create_request(client, OP.DB_LIST)
   req:send()
-  return req:parse_response()
+  return req:read_record()
 end
 
 return _M

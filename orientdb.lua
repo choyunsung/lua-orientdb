@@ -23,7 +23,6 @@ function _M.new(host, port, sockets_lib)
   
   local connection = require 'lib.connection'
   local operations = require 'lib.operations'
-
   
   local client = {
     ODB = _M,
@@ -50,7 +49,7 @@ function _M.new(host, port, sockets_lib)
        storage_type ~= _M.STORAGE.PHYSICAL then
        error('invalid storage type')
     end
-    return assert(operations.db_create(self, name, db_type, storage_type))
+    operations.db_create(self, name, db_type, storage_type)
   end
   
   function client:db_drop(db_name, storage_type)
@@ -80,7 +79,9 @@ function _M.new(host, port, sockets_lib)
   function client:db_open(db_name, db_type, user, password)
     operations.db_open(self, db_name, db_type, user, password)
     error('db functions not implemented')
-    local db = {}
+    local db = {
+      CLIENT = self
+    }
     
     function db:close()
     end

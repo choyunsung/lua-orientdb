@@ -14,6 +14,7 @@ function _M.connect(host, port, sockets_lib)
   local lib = find_socket_library(sockets_lib)
   
   connection.tcp = assert(lib.tcp())
+  connection.tcp:settimeout(1)
   local ok, err_msg = connection.tcp:connect(host, port)
   if not ok then error('establishing connection '..err_msg) end
   

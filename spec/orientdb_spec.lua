@@ -36,7 +36,6 @@ for _, socket_lib in pairs({'socket'}) do
   
   describe('#operations on #'..socket_lib, function()
     local client = nil
-    local db = nil
     
     before_each(function()
       client = odb.new('localhost', 2424, socket_lib)
@@ -45,29 +44,6 @@ for _, socket_lib in pairs({'socket'}) do
     
     after_each(function()
       client:disconnect()
-    end)
-    
-    it('list databases', function()
-      local dbs = assert.has_no.errors(function() return client:db_list() end)
-      assert.same(dbs, {'animals'})
-    end)
-    
-    it('open graph database', function()
-      db = assert.has_no.errors(function()
-        return client:db_open('animals', 'graph', USER, PASSWORD)
-      end)
-      assert.truthy(db)
-    end)
-    
-    pending('open document database')
-    
-    it('database #info', function()
-      assert.truthy(function() return db:size() end)
-      assert.truthy(function() return db:count_records() end)
-    end)
-    
-    it('close db', function()
-      assert.has_no.errors(function() db:close() end)
     end)
     
     it('create document database in memory', function()
@@ -90,7 +66,32 @@ for _, socket_lib in pairs({'socket'}) do
       assert.truthy(client:db_exists('graph_db_phys'))
     end)
     
+    it('list databases', function()
+      local dbs = assert.has_no.errors(function() return client:db_list() end)
+      assert.same(dbs, {'doc_db_mem', 'doc_db_phys', 'graph_db_mem', 'graph_db_phys'})
+    end)
+    
     for _, db_name in pairs({'doc_db_mem', 'doc_db_phys', 'graph_db_mem', 'graph_db_phys'}) do
+      local db = nil
+      
+      it('open graph database', function()
+        db = assert.has_no.errors(function()
+          return client:db_open(db_name, 'graph', USER, PASSWORD)
+        end)
+        assert.truthy(db)
+      end)
+      
+      pending('open document database')
+      
+      it('database #info', function()
+        assert.truthy(function() return db:size() end)
+        assert.truthy(function() return db:count_records() end)
+      end)
+      
+      it('close db', function()
+        assert.has_no.errors(function() db:close() end)
+      end)
+      
       it('drop database '..db_name, function()
         assert.has_no.errors(function() client:db_drop(db_name) end)
         assert.falsy(client:db_exists(db_name))
