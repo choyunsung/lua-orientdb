@@ -1,4 +1,4 @@
-odb = require 'orientdb'
+local odb = require 'orientdb'
 
 local USER = 'root'
 local PASSWORD = 'root'
@@ -35,9 +35,17 @@ for _, socket_lib in pairs({'socket'}) do
   end)
   
   describe('#operations on #'..socket_lib, function()
-    local client = odb.new('localhost', 2424, socket_lib)
+    local client = nil
     local db = nil
-    client:connect(USER, PASSWORD)
+    
+    before_each(function()
+      client = odb.new('localhost', 2424, socket_lib)
+      client:connect(USER, PASSWORD)
+    end)
+    
+    after_each(function()
+      client:disconnect()
+    end)
     
     it('list databases', function()
       local dbs = assert.has_no.errors(function() return client:db_list() end)
@@ -82,18 +90,16 @@ for _, socket_lib in pairs({'socket'}) do
       assert.truthy(client:db_exists('graph_db_phys'))
     end)
     
-    it('drop databases', function()
-      for _, db_name in pairs({'doc_db_mem', 'doc_db_phys', 'graph_db_mem', 'graph_db_phys'}) do
+    for _, db_name in pairs({'doc_db_mem', 'doc_db_phys', 'graph_db_mem', 'graph_db_phys'}) do
+      it('drop database '..db_name, function()
         assert.has_no.errors(function() client:db_drop(db_name) end)
         assert.falsy(client:db_exists(db_name))
-      end
-    end)
+      end)
+    end
     
     pending('document db query')
     pending('document db command')
     pending('graph db query')
     pending('graph db command')
-    
-    client:disconnect()
   end)
 end
