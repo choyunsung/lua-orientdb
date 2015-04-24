@@ -56,108 +56,141 @@ local OP = {
 local TRUE, FALSE = 1, 0
 local NULL_STRING = string.char(255)
 
-local function send_request(client, operation, fmt, ...)
-  fmt = fmt or ''
-  local arg = {...}
-  local argc = select('#', ...)
-  
-  debug('sending request OP ', operation)
-  
+function create_request(client, operation)
   local struct = require 'struct'
   
-  assert(#fmt == argc,
-         ' format string ('..fmt..') length not equal to number of arguments ('..argc..')')
-  local pack_args = {operation, client.session}
-  for i = 1, #fmt do
-    local v = arg[i]
-    local f = fmt:sub(i, i)
-    if f == 's' then
-      if type(v) ~= 'string' then error('expected a string value, got '..type(v)) end
-      table.insert(pack_args, #v)
-    end
-    table.insert(pack_args, v)
-  end
-  local pack_fmt = '>bi4'..fmt:gsub('s', 'ic0'):gsub('i', 'i4')
-  local request = struct.pack(pack_fmt, unpack(pack_args))
-
-  client.connection:send(request)
+  local req = {
+    CLIENT = client,
+    OPERATION = operation
+  }
+  
+  function req:write(fmt, ...)
+    fmt = fmt or ''
+    local arg = {...}
+    local argc = select('#', ...)
     
-  local ok = struct.unpack('>b', client.connection:receive(1)) == 0
-  local session = struct.unpack('>i4', client.connection:receive(4))
-  
-  debug('sent. ok=', tostring(ok), ', session=', session)
-  
-  if not ok then
-    local error_msg = 'Request error. '
-    while struct.unpack('>b', client.connection:receive(1)) == 1 do
-      local n = struct.unpack('>i4', client.connection:receive(4))
-      error_msg = error_msg..struct.unpack('>c'..n, client.connection:receive(n))..'. '
-      n = struct.unpack('>i4', client.connection:receive(4))
-      error_msg = error_msg..struct.unpack('>c'..n, client.connection:receive(n))..'.\n'
+    debug('writing request OP ', operation)
+    
+    assert(#fmt == argc,
+           ' format string ('..fmt..') length not equal to number of arguments ('..argc..')')
+    local pack_args = {self.OPERATION, self.CLIENT.session}
+    for i = 1, #fmt do
+      local v = arg[i]
+      local f = fmt:sub(i, i)
+      if f == 's' then
+        if type(v) ~= 'string' then error('expected a string value, got '..type(v)) end
+        table.insert(pack_args, #v)
+      end
+      table.insert(pack_args, v)
     end
-    debug(error_msg)
-    error(error_msg)
+    local pack_fmt = '>bi4'..fmt:gsub('s', 'ic0'):gsub('i', 'i4')
+    self.contents = struct.pack(pack_fmt, unpack(pack_args))
   end
   
-  assert(client.session == session,
-         'sessions do not match, got '..session..', expected '..client.session)
-  
-  local response = nil
-  if client.session == -1 then
-    client.session = struct.unpack('>i4', client.connection:receive(4))
-    debug('session set to ', client.session)
-  end
-  local n_response = struct.unpack('>i4', client.connection:receive(4))
+  function req:send()
+    if not self.contents then self:write() end
+    self.CLIENT.connection:send(self.contents)
 
-  if n_response > 0 then
-    response = struct.unpack('>i4', client.connection:receive(n_response))
+    local ok = struct.unpack('>b', self:_recv(1)) == 0
+    local session = struct.unpack('>i4', self:_recv(4))
+    
+    debug('sent. ok=', tostring(ok), ', session=', session)
+    
+    if not ok then
+      local error_msg = 'Request error. '
+      while struct.unpack('>b', self:_recv(1)) == 1 do
+        local n = struct.unpack('>i4', self:_recv(4))
+        error_msg = error_msg..struct.unpack('>c'..n, self:_recv(n))..'. '
+        n = struct.unpack('>i4', self:_recv(4))
+        error_msg = error_msg..struct.unpack('>c'..n, self:_recv(n))..'.\n'
+      end
+      debug(error_msg)
+      error(error_msg)
+    end
+    
+    assert(self.CLIENT.session == session,
+           'sessions do not match, got '..session..', expected '..self.CLIENT.session)
   end
-  debug('response n=', n_response, ': ', tostring(response))
-  return response
+  
+  function req:parse_response()
+    local response = nil
+    local n_response = struct.unpack('>i4', self:_recv(4))
+  
+    if n_response > 0 then
+      response = struct.unpack('>i4', self:_recv(n_response))
+    end
+    debug('response n=', n_response, ': ', tostring(response))
+    return response
+  end
+  
+  function req:_recv(bytes)
+    return self.CLIENT.connection:receive(bytes)
+  end
+  
+  return req
 end
 
 function _M.connect(client, user, password)
-  return send_request(client, OP.CONNECT, 'sshssbss',
-                      'lua-orientdb',
-                      tostring(client.ODB.VERSION),
-                      client.connection.PROTOCOL,
-                      NULL_STRING,
-                      'ORecordSerializerBinary',
-                      FALSE,
-                      user,
-                      password
-  )
+  local req = create_request(client, OP.CONNECT)
+  req:write('sshssbss',
+            'lua-orientdb',
+            tostring(client.ODB.VERSION),
+            client.connection.PROTOCOL,
+            NULL_STRING,
+            'ORecordSerializerBinary',
+            FALSE,
+            user,
+            password
+            )
+  req:send()
+  client.session = struct.unpack('>i4', client.connection:receive(4))
+  debug('session set to ', client.session)
+  return req:parse_response()
 end
 
 function _M.db_open(client, db_name, db_type, user, password)
-  return send_request(client, OP.DB_OPEN, 'sshssbssss',
-                      'lua-orientdb',
-                      tostring(client.ODB.VERSION),
-                      client.connection.PROTOCOL,
-                      NULL_STRING,
-                      'ORecordSerializerBinary',
-                      FALSE,
-                      db_name,
-                      db_type,
-                      user,
-                      password
-  )
+  local req = create_request(client, OP.DB_OPEN)
+  req:write('sshssbssss',
+            'lua-orientdb',
+            tostring(client.ODB.VERSION),
+            client.connection.PROTOCOL,
+            NULL_STRING,
+            'ORecordSerializerBinary',
+            FALSE,
+            db_name,
+            db_type,
+            user,
+            password
+            )
+  req:send()
+  client.session = struct.unpack('>i4', client.connection:receive(4))
+  debug('session set to ', client.session)
+  return req:parse_response()
 end
 
 function _M.db_create(client, db_name, db_type, storage_type)
-  return send_request(client, OP.DB_CREATE, 'sss', db_name, db_type, storage_type)
+  local req = create_request(client, OP.DB_CREATE)
+  req:write('sss', db_name, db_type, storage_type)
+  req:send()
 end
 
 function _M.db_drop(client, db_name, storage_type)
-  return send_request(client, OP.DB_DROP, 'ss', db_name, storage_type)
+  local req = create_request(client, OP.DB_DROP)
+  req:write('ss', db_name, storage_type)
+  req:send()
 end
 
 function _M.db_exist(client, db_name, storage_type)
-  return send_request(client, OP.DB_EXIST, 'ss', db_name, storage_type)
+  local req = create_request(client, OP.DB_EXIST)
+  req:write('ss', db_name, storage_type)
+  req:send()
+  return struct.unpack('>b', client.connection:receive(1)) == TRUE
 end
 
 function _M.db_list(client)
-  return send_request(client, OP.DB_LIST)
+  local req = create_request(client, OP.DB_LIST)
+  req:send()
+  return req:parse_response()
 end
 
 return _M
