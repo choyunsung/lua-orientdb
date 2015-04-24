@@ -1,4 +1,5 @@
-local _M = {
+local _M = {}
+local OP = {
   -- server operations
   SHUTDOWN = 1,
   CONNECT  = 2,
@@ -15,18 +16,18 @@ local _M = {
   DB_SIZE   = 8,
   DB_COUNTRECORDS = 9,
   DB_RELOAD = 73,
-  DB_COPY	  = 90,
-  DB_TRANSFER	= 93,
-  DB_FREEZE	  = 94,
-  DB_RELEASE	= 95,
+  DB_COPY   = 90,
+  DB_TRANSFER = 93,
+  DB_FREEZE   = 94,
+  DB_RELEASE  = 95,
   DATACLUSTER_ADD       = 10,
   DATACLUSTER_DROP      = 11,
   DATACLUSTER_COUNT     = 12,
   DATACLUSTER_DATARANGE = 13,
   DATACLUSTER_COPY      = 14,
   DATACLUSTER_LH_CLUSTER_IS_USED = 16,
-  DATACLUSTER_FREEZE	  = 96,
-  DATACLUSTER_RELEASE	  = 97,
+  DATACLUSTER_FREEZE    = 96,
+  DATACLUSTER_RELEASE   = 97,
   RECORD_METADATA = 29,
   RECORD_LOAD     = 30,
   RECORD_CREATE   = 31,
@@ -75,12 +76,23 @@ local function send_request(client, operation, fmt, ...)
   client.connection:send(request)
     
   local ok = struct.unpack('>b', client.connection:receive(1)) == 0
-  local response = nil
   local session = struct.unpack('>i4', client.connection:receive(4))
+  
+  if not ok then
+    local error_msg = 'Request error. '
+    while struct.unpack('>b', client.connection:receive(1)) == 1 do
+      local n = struct.unpack('>i4', client.connection:receive(4))
+      error_msg = error_msg..struct.unpack('>c'..n, client.connection:receive(n))..'. '
+      n = struct.unpack('>i4', client.connection:receive(4))
+      error_msg = error_msg..struct.unpack('>c'..n, client.connection:receive(n))..'.\n'
+    end
+    error(error_msg)
+  end
   
   assert(client.session == session,
          'sessions do not match, got '..session..', expected '..client.session)
   
+  local response = nil
   if client.session == -1 then
     client.session = struct.unpack('>i4', client.connection:receive(4))
   elseif ok then
@@ -93,7 +105,7 @@ local function send_request(client, operation, fmt, ...)
 end
 
 function _M.connect(client, user, password)
-  return send_request(client, _M.CONNECT, 'sshssbss',
+  return send_request(client, OP.CONNECT, 'sshssbss',
                       'lua-orientdb',
                       tostring(client.ODB.VERSION),
                       client.connection.PROTOCOL,
@@ -106,7 +118,7 @@ function _M.connect(client, user, password)
 end
 
 function _M.db_open(client, db_name, db_type, user, password)
-  return send_request(client, _M.DB_OPEN, 'sshssbssss',
+  return send_request(client, OP.DB_OPEN, 'sshssbssss',
                       'lua-orientdb',
                       tostring(client.ODB.VERSION),
                       client.connection.PROTOCOL,
@@ -121,19 +133,19 @@ function _M.db_open(client, db_name, db_type, user, password)
 end
 
 function _M.db_create(client, db_name, db_type, storage_type)
-  return send_request(client, _M.DB_CREATE, 'sss', db_name, db_type, storage_type)
+  return send_request(client, OP.DB_CREATE, 'sss', db_name, db_type, storage_type)
 end
 
 function _M.db_drop(client, db_name, storage_type)
-  return send_request(client, _M.DB_DROP, 'ss', db_name, storage_type)
+  return send_request(client, OP.DB_DROP, 'ss', db_name, storage_type)
 end
 
 function _M.db_exist(client, db_name, storage_type)
-  return send_request(client, _M.DB_EXIST, 'ss', db_name, storage_type)
+  return send_request(client, OP.DB_EXIST, 'ss', db_name, storage_type)
 end
 
 function _M.db_list(client)
-  return send_request(client, _M.DB_LIST)
+  return send_request(client, OP.DB_LIST)
 end
 
 return _M
