@@ -1,4 +1,6 @@
-#Lua bindings for OrientDB
+# ![](lua-orientdb.png) Lua bindings for OrientDB
+
+Talks to odb through the binary interface.
 
 Status: early develompent/experiments
 
