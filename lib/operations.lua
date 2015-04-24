@@ -61,6 +61,8 @@ local function send_request(client, operation, fmt, ...)
   local arg = {...}
   local argc = select('#', ...)
   
+  debug('sending request OP ', operation)
+  
   local struct = require 'struct'
   
   assert(#fmt == argc,
@@ -83,6 +85,8 @@ local function send_request(client, operation, fmt, ...)
   local ok = struct.unpack('>b', client.connection:receive(1)) == 0
   local session = struct.unpack('>i4', client.connection:receive(4))
   
+  debug('sent. ok=', tostring(ok), ', session=', session)
+  
   if not ok then
     local error_msg = 'Request error. '
     while struct.unpack('>b', client.connection:receive(1)) == 1 do
@@ -91,6 +95,7 @@ local function send_request(client, operation, fmt, ...)
       n = struct.unpack('>i4', client.connection:receive(4))
       error_msg = error_msg..struct.unpack('>c'..n, client.connection:receive(n))..'.\n'
     end
+    debug(error_msg)
     error(error_msg)
   end
   
@@ -100,13 +105,15 @@ local function send_request(client, operation, fmt, ...)
   local response = nil
   if client.session == -1 then
     client.session = struct.unpack('>i4', client.connection:receive(4))
+    debug('session set to ', client.session)
   end
   local n_response = struct.unpack('>i4', client.connection:receive(4))
 
   if n_response > 0 then
     response = struct.unpack('>i4', client.connection:receive(n_response))
   end
-  return ok, response
+  debug('response n=', n_response, ': ', tostring(response))
+  return response
 end
 
 function _M.connect(client, user, password)
