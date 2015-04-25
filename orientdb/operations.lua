@@ -1,6 +1,6 @@
 local _M = {}
 
-local debug = require 'lib.util'.debug
+local debug = require 'orientdb.util'.debug
 
 local OP = {
   -- server operations

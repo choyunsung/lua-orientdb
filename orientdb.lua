@@ -21,8 +21,8 @@ function _M.new(host, port, sockets_lib)
     end
   end
   
-  local connection = require 'lib.connection'
-  local operations = require 'lib.operations'
+  local connection = require 'orientdb.connection'
+  local operations = require 'orientdb.operations'
   
   local client = {
     ODB = _M,
