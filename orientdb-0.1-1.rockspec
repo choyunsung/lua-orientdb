@@ -16,7 +16,8 @@ description = {
 dependencies = {
   'lua ~> 5.1',
   'luasocket >= 2.0',
-  'struct >= 1.2'
+  'struct >= 1.2',
+  'luabitop >= 1.0'
 }
 build = {
   type = "builtin",

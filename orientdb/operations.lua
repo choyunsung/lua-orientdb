@@ -128,6 +128,21 @@ local function create_request(client, operation)
     return struct.unpack('>i'..bytes, self:_recv(bytes))
   end
   
+  function req:read_varint(unsigned) -- signed is the default
+    local bitwise = bit32 or bit or require 'bit'
+    local int = 0
+    local shift = 0
+    repeat
+      local byte = self:read_byte()
+      int = int + bitwise.lshift(bitwise.band(byte, 0x7F), 7 * shift)
+      shift = shift + 1
+    until byte < 0x80
+    if unsigned then return int end
+    -- zig-zag encoding:
+    if bitwise.band(int, 1) == 0 then return bitwise.rshift(int, 1) end
+    return -bitwise.rshift(int, 1) - 1
+  end
+  
   function req:read_byte()
     return self:read_int(1)
   end
