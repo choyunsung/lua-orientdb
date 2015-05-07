@@ -257,4 +257,34 @@ function _M.db_list(client)
   return req:read_record()
 end
 
+function _M.db_close(db)
+  local req = create_request(db.CLIENT, OP.DB_CLOSE)
+  req:send()
+end
+
+function _M.db_count_records(db)
+  local req = create_request(db.CLIENT, OP.DB_COUNTRECORDS)
+  req:send()
+  return req:read_long()
+end
+
+function _M.db_size(db)
+  local req = create_request(db.CLIENT, OP.DB_SIZE)
+  req:send()
+  return req:read_long()
+end
+
+function _M.db_reload(db)
+  local req = create_request(db.CLIENT, OP.DB_LIST)
+  req:send()
+  local n_clusters = req:read_short()
+  local clusters = {}
+  for _ = 1, n_clusters do
+    local name = req:read_string()
+    local id = req:read_short()
+    clusters[id] = name
+  end
+  return clusters
+end
+
 return _M

@@ -78,21 +78,30 @@ function _M.new(host, port, sockets_lib)
 
   function client:db_open(db_name, db_type, user, password)
     operations.db_open(self, db_name, db_type, user, password)
-    error('db functions not implemented')
     local db = {
       CLIENT = self
     }
     
     function db:close()
+      if not pcall(function() operations.db_close(self) end) then
+        for k, _ in pairs(self) do
+          self[k] = nil
+        end
+      else
+        error('could not close table')
+      end
     end
     
     function db:size()
+      return operations.db_size(self)
     end
     
     function db:count_records()
+      return operations.db_count_records(self)
     end
     
     function db:reload()
+      operations.db_reload(self)
     end
     
     return db

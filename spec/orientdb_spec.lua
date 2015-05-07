@@ -7,9 +7,9 @@ for _, socket_lib in pairs({'socket'}) do
   describe('#connect over #'..socket_lib, function()
            
     it('check client parameters', function()
-      assert.has.errors(function() odb.new('localhost', 2424, 'not_a_lib') end)
-      assert.has.errors(function() odb.new('localhost', 'not a port', socket_lib) end)
-      assert.has.errors(function() odb.new(nil, 2424, socket_lib) end)
+      assert.has.error(function() odb.new('localhost', 2424, 'not_a_lib') end)
+      assert.has.error(function() odb.new('localhost', 'not a port', socket_lib) end)
+      assert.has.error(function() odb.new(nil, 2424, socket_lib) end)
     end)
     
     it('create client', function()
@@ -75,8 +75,8 @@ for _, socket_lib in pairs({'socket'}) do
       local db = nil
       
       it('open graph database', function()
-        db = assert.has_no.errors(function()
-          return client:db_open(db_name, 'graph', USER, PASSWORD)
+        assert.has_no.errors(function()
+          db = client:db_open(db_name, 'graph', USER, PASSWORD)
         end)
         assert.truthy(db)
       end)
@@ -90,6 +90,7 @@ for _, socket_lib in pairs({'socket'}) do
       
       it('close db', function()
         assert.has_no.errors(function() db:close() end)
+        assert.same(db, {})
       end)
       
       it('drop database '..db_name, function()
