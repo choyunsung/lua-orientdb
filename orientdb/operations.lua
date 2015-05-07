@@ -117,7 +117,7 @@ local function create_request(client, operation)
   function req:read_strings()
     local n = req:read_int()
     local ret = {}
-    for i = 1, n do
+    for _ = 1, n do
       ret.insert(req:read_string())
     end
     return ret
@@ -141,6 +141,21 @@ local function create_request(client, operation)
     -- zig-zag encoding:
     if bitwise.band(int, 1) == 0 then return bitwise.rshift(int, 1) end
     return -bitwise.rshift(int, 1) - 1
+  end
+  
+  function req:read_decimal()
+    local scale =  self:read_int()
+    local n = self:read_int()
+    local val = self:read_int(n)
+    return val * math.pow(10, -scale)
+  end
+  
+  function req:read_long()
+    return self:read_int(8) 
+  end
+
+  function req:read_short()
+    return self:read_int(2)
   end
   
   function req:read_byte()
